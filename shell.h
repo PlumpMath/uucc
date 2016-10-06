@@ -54,3 +54,12 @@ public:
     Exit(const std::vector<std::string> &args) {}
     Line pull() override;
 };
+
+class Cd : public Process {
+public:
+    Cd(const std::vector<std::string> &args);
+    Line pull() override;
+private:
+    std::string dirname;
+};
+

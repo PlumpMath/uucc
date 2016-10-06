@@ -47,6 +47,23 @@ Line Exit::pull() {
     throw ExitShell();
 }
 
+Cd::Cd(const std::vector<std::string> &args) {
+    if(args.size() != 2) {
+        throw std::logic_error("Cd takes one argument");
+    }
+    dirname = args[1];
+}
+
+Line Cd::pull() {
+    if(!dirname.empty()) {
+        if(chdir(dirname.c_str()) != 0) {
+            throw std::runtime_error("Could not cd.");
+        }
+        dirname.clear();
+    }
+    return Line{EOF_PIPE, ""};
+}
+
 std::string get_cwd() {
     const size_t ARRSIZE = 512;
     char arr[ARRSIZE];
@@ -96,6 +113,8 @@ std::vector<std::unique_ptr<Process>> build_pipeline(const std::vector<std::vect
             result.emplace_back(std::unique_ptr<Process>(new Cat(s)));
         } else if(s[0] == "exit") {
             result.emplace_back(std::unique_ptr<Process>(new Exit(s)));
+        } else if(s[0] == "cd") {
+            result.emplace_back(std::unique_ptr<Process>(new Cd(s)));
         } else {
             throw std::logic_error("Unknown command: " + s[0]);
         }
@@ -132,7 +151,6 @@ void eval_loop()  {
         printf("Error: %s\n", e.what());
     }
 }
-
 
 int main(int argc, char **argv) {
     try {
