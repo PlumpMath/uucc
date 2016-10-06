@@ -40,12 +40,17 @@ public:
 class Cat : public Process {
 
 public:
-    Cat(const char *fname);
-    Cat(const std::string &fname) : Cat(fname.c_str()) {};
+    Cat(const std::vector<std::string> &args);
     Line pull() override;
 
 private:
 
     std::vector<std::string> contents;
     size_t offset=0;
+};
+
+class Exit : public Process {
+public:
+    Exit(const std::vector<std::string> &args) {}
+    Line pull() override;
 };

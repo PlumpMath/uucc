@@ -22,12 +22,18 @@
 #include<fstream>
 #include<stdexcept>
 
+class ExitShell : public std::exception {
+};
 
-Cat::Cat(const char *fname) {
-   std::ifstream ifile(fname, std::ios::in);
-   for(std::string l; std::getline(ifile, l);) {
-       contents.emplace_back(std::move(l));
-   }
+Cat::Cat(const std::vector<std::string> &args) {
+    auto i = args.begin();
+    ++i;
+    for(;i != args.end(); ++i) {
+        std::ifstream ifile(*i, std::ios::in);
+        for(std::string l; std::getline(ifile, l);) {
+            contents.emplace_back(std::move(l));
+        }
+    }
 }
 
 Line Cat::pull() {
@@ -37,6 +43,10 @@ Line Cat::pull() {
     return Line{STDOUT_PIPE, contents[offset++]};
 }
 
+Line Exit::pull() {
+    throw ExitShell();
+}
+
 std::string get_cwd() {
     const size_t ARRSIZE = 512;
     char arr[ARRSIZE];
@@ -44,20 +54,50 @@ std::string get_cwd() {
     return std::string(arr);
 }
 
+// The world's most simple parser.
 std::vector<std::vector<std::string>> parse(const std::string &line) {
     std::vector<std::vector<std::string>> result;
-    std::vector<std::string> one{"cat", "build.ninja"};
-    result.push_back(one);
+    std::vector<std::string> current_command;
+    std::string current_word;
+    for(const auto &c : line) {
+        if(c == '|') {
+            if(!current_word.empty()) {
+                current_command.emplace_back(std::move(current_word));
+                current_word.clear();
+            }
+            result.emplace_back(std::move(current_command));
+            current_command.clear();
+        } else if(c == ' ' || c == '\t') {
+            if(!current_word.empty()) {
+                current_command.emplace_back(current_word);
+                current_word.clear();
+            }
+        } else {
+            current_word.push_back(c);
+        }
+    }
+    if(!current_word.empty()) {
+        current_command.emplace_back(std::move(current_word));
+    }
+    if(!current_command.empty()) {
+        result.emplace_back(std::move(current_command));
+    }
     return result;
 }
 
 std::vector<std::unique_ptr<Process>> build_pipeline(const std::vector<std::vector<std::string>> &commands) {
     std::vector<std::unique_ptr<Process>> result;
+    result.reserve(commands.size());
     for(const auto &s : commands) {
-        if(s.at(0) == "cat") {
-            result.emplace_back(std::unique_ptr<Process>(new Cat(s.at(1))));
+        if(s.empty()) {
+            continue;
+        }
+        if(s[0] == "cat") {
+            result.emplace_back(std::unique_ptr<Process>(new Cat(s)));
+        } else if(s[0] == "exit") {
+            result.emplace_back(std::unique_ptr<Process>(new Exit(s)));
         } else {
-            throw std::logic_error("Unknown command: " + s.at(0));
+            throw std::logic_error("Unknown command: " + s[0]);
         }
     }
     return result;
@@ -82,9 +122,15 @@ void eval_loop()  {
     fflush(stdout);
     std::string curline;
     std::getline(std::cin, curline);
-    auto cmd_arr = parse(curline);
-    auto pipeline = build_pipeline(cmd_arr);
-    run_pipeline(pipeline);
+    try {
+        auto cmd_arr = parse(curline);
+        auto pipeline = build_pipeline(cmd_arr);
+        run_pipeline(pipeline);
+    } catch(const ExitShell &) {
+        throw;
+    } catch(const std::exception &e) {
+        printf("Error: %s\n", e.what());
+    }
 }
 
 
@@ -93,8 +139,7 @@ int main(int argc, char **argv) {
         while(true) {
             eval_loop();
         }
-    } catch(const std::exception &e) {
-        printf("%s\n", e.what());
+    } catch(const ExitShell &) {
     }
     return 0;
 }
