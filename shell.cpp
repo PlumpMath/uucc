@@ -16,9 +16,11 @@
  */
 
 #include"shell.h"
-#include<iostream>
 #include<unistd.h>
+#include<memory>
+#include<iostream>
 #include<fstream>
+#include<stdexcept>
 
 
 Cat::Cat(const char *fname) {
@@ -42,13 +44,47 @@ std::string get_cwd() {
     return std::string(arr);
 }
 
+std::vector<std::vector<std::string>> parse(const std::string &line) {
+    std::vector<std::vector<std::string>> result;
+    std::vector<std::string> one{"cat", "build.ninja"};
+    result.push_back(one);
+    return result;
+}
+
+std::vector<std::unique_ptr<Process>> build_pipeline(const std::vector<std::vector<std::string>> &commands) {
+    std::vector<std::unique_ptr<Process>> result;
+    for(const auto &s : commands) {
+        if(s.at(0) == "cat") {
+            result.emplace_back(std::unique_ptr<Process>(new Cat(s.at(1))));
+        } else {
+            throw std::logic_error("Unknown command: " + s.at(0));
+        }
+    }
+    return result;
+}
+
+void run_pipeline(std::vector<std::unique_ptr<Process>> &pipeline) {
+    if(pipeline.empty()) {
+        return;
+    }
+    while(true) {
+        auto l = pipeline.back()->pull();
+        if(l.type == EOF_PIPE) {
+            return;
+        }
+        printf("%s\n", l.text.c_str());
+    }
+}
+
 void eval_loop()  {
     auto cwd = get_cwd();
     printf("%s\n$ ", cwd.c_str());
     fflush(stdout);
     std::string curline;
     std::getline(std::cin, curline);
-    printf("%s\n", curline.c_str());
+    auto cmd_arr = parse(curline);
+    auto pipeline = build_pipeline(cmd_arr);
+    run_pipeline(pipeline);
 }
 
 

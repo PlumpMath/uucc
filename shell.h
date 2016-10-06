@@ -41,6 +41,7 @@ class Cat : public Process {
 
 public:
     Cat(const char *fname);
+    Cat(const std::string &fname) : Cat(fname.c_str()) {};
     Line pull() override;
 
 private:
