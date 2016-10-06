@@ -23,11 +23,12 @@
 #include<fstream>
 #include<stdexcept>
 #include<algorithm>
+#include<regex>
 
 class ExitShell : public std::exception {
 };
 
-Cat::Cat(const std::vector<std::string> &args) {
+Cat::Cat(const std::vector<std::string> &args, Process *previous) : Process(previous) {
     auto i = args.begin();
     ++i;
     for(;i != args.end(); ++i) {
@@ -49,7 +50,7 @@ Line Exit::pull() {
     throw ExitShell();
 }
 
-Cd::Cd(const std::vector<std::string> &args) {
+Cd::Cd(const std::vector<std::string> &args, Process *previous) : Process(previous) {
     if(args.size() != 2) {
         throw std::logic_error("Cd takes one argument");
     }
@@ -66,7 +67,7 @@ Line Cd::pull() {
     return Line{EOF_PIPE, ""};
 }
 
-Ls::Ls(const std::vector<std::string> &args) {
+Ls::Ls(const std::vector<std::string> &args, Process *previous) : Process(previous) {
     std::string dirname;
     if(args.size() == 1) {
         dirname = ".";
@@ -109,6 +110,27 @@ std::string get_cwd() {
     return std::string(arr);
 }
 
+
+Grep::Grep(const std::vector<std::string> &args, Process *previous) : Process(previous) {
+    if(args.size() != 2) {
+        throw std::logic_error("Grep takes exactly one argument.");
+    }
+    pattern = args.back();
+}
+
+Line Grep::pull() {
+    std::regex p(pattern); // inefficient
+    while(true) {
+        auto l = previous->pull();
+        if(l.type == EOF_PIPE || l.type == STDERR_PIPE) {
+            return l;
+        }
+        if(std::regex_search(l.text, p)) {
+            return l;
+        }
+    }
+}
+
 // The world's most simple parser.
 std::vector<std::vector<std::string>> parse(const std::string &line) {
     std::vector<std::vector<std::string>> result;
@@ -142,19 +164,23 @@ std::vector<std::vector<std::string>> parse(const std::string &line) {
 
 std::vector<std::unique_ptr<Process>> build_pipeline(const std::vector<std::vector<std::string>> &commands) {
     std::vector<std::unique_ptr<Process>> result;
-    result.reserve(commands.size());
+    result.reserve(commands.size()+1);
+    result.emplace_back(std::unique_ptr<Process>(new Empty()));
     for(const auto &s : commands) {
         if(s.empty()) {
             continue;
         }
+        Process *previous = result.back().get();
         if(s[0] == "cat") {
-            result.emplace_back(std::unique_ptr<Process>(new Cat(s)));
+            result.emplace_back(std::unique_ptr<Process>(new Cat(s, previous)));
         } else if(s[0] == "exit") {
-            result.emplace_back(std::unique_ptr<Process>(new Exit(s)));
+            result.emplace_back(std::unique_ptr<Process>(new Exit(s, previous)));
         } else if(s[0] == "cd") {
-            result.emplace_back(std::unique_ptr<Process>(new Cd(s)));
+            result.emplace_back(std::unique_ptr<Process>(new Cd(s, previous)));
         } else if(s[0] == "ls") {
-            result.emplace_back(std::unique_ptr<Process>(new Ls(s)));
+            result.emplace_back(std::unique_ptr<Process>(new Ls(s, previous)));
+        } else if(s[0] == "grep") {
+            result.emplace_back(std::unique_ptr<Process>(new Grep(s, previous)));
         } else {
             throw std::logic_error("Unknown command: " + s[0]);
         }
@@ -193,6 +219,19 @@ void eval_loop()  {
 }
 
 int main(int argc, char **argv) {
+    printf(R"(Welcome to the experimental toy shell. It is just like a regular Unix shell but"
+a lot more limited. You can only use a few commands (ls, grep etc) and they
+have no options. Other things that don't work:
+
+- shell or environment variables
+- stream redirection other than '|'
+- tab completion
+- string quoting (only spaces count)
+- most shell usability things apart from a working backspace
+
+Run the "exit" command or hit ctrl-c to exit.
+
+)");
     try {
         while(true) {
             eval_loop();

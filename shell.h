@@ -33,14 +33,25 @@ struct Line {
 
 class Process {
 public:
+    explicit Process(Process *previous) : previous(previous) {};
     virtual Line pull() = 0;
     virtual ~Process() = default;
+protected:
+    Process *previous;
+};
+
+class Empty : public Process {
+public:
+    Empty() : Process(nullptr) {};
+    Line pull() override {
+        return Line{EOF_PIPE, ""};
+    }
 };
 
 class Cat : public Process {
 
 public:
-    Cat(const std::vector<std::string> &args);
+    Cat(const std::vector<std::string> &args, Process *previous);
     Line pull() override;
 
 private:
@@ -51,13 +62,13 @@ private:
 
 class Exit : public Process {
 public:
-    Exit(const std::vector<std::string> &args) {}
+    Exit(const std::vector<std::string> &args, Process *previous) : Process(previous) {}
     Line pull() override;
 };
 
 class Cd : public Process {
 public:
-    Cd(const std::vector<std::string> &args);
+    Cd(const std::vector<std::string> &args, Process *previous);
     Line pull() override;
 private:
     std::string dirname;
@@ -65,11 +76,20 @@ private:
 
 class Ls : public Process {
 public:
-    Ls(const std::vector<std::string> &args);
+    Ls(const std::vector<std::string> &args, Process *previous);
     Line pull() override;
 
 private:
     void readdir(const std::string &dirname);
     std::vector<std::string> files;
     size_t offset = 0;
+};
+
+class Grep : public Process {
+public:
+    Grep(const std::vector<std::string> &args, Process *previous);
+    Line pull() override;
+
+private:
+    std::string pattern;
 };
