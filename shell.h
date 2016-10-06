@@ -63,3 +63,13 @@ private:
     std::string dirname;
 };
 
+class Ls : public Process {
+public:
+    Ls(const std::vector<std::string> &args);
+    Line pull() override;
+
+private:
+    void readdir(const std::string &dirname);
+    std::vector<std::string> files;
+    size_t offset = 0;
+};

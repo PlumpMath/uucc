@@ -17,10 +17,12 @@
 
 #include"shell.h"
 #include<unistd.h>
+#include<dirent.h>
 #include<memory>
 #include<iostream>
 #include<fstream>
 #include<stdexcept>
+#include<algorithm>
 
 class ExitShell : public std::exception {
 };
@@ -62,6 +64,42 @@ Line Cd::pull() {
         dirname.clear();
     }
     return Line{EOF_PIPE, ""};
+}
+
+Ls::Ls(const std::vector<std::string> &args) {
+    std::string dirname;
+    if(args.size() == 1) {
+        dirname = ".";
+    } else if(args.size() == 2) {
+        dirname = args[1];
+    } else {
+        throw std::logic_error("Ls takes one or zero arguments.");
+    }
+    readdir(dirname);
+}
+
+void Ls::readdir(const std::string &dirname) {
+    std::unique_ptr<DIR, int(*)(DIR*)> dirholder(opendir(dirname.c_str()), closedir);
+    if(!dirholder) {
+        throw std::runtime_error("Could not open dir for reading.");
+    }
+    auto dir = dirholder.get();
+    std::array<char, sizeof(dirent) + NAME_MAX + 1> buf;
+    struct dirent *cur = reinterpret_cast<struct dirent*>(buf.data());
+    struct dirent *de;
+    std::string basename;
+    while(readdir_r(dir, cur, &de) == 0 && de) {
+        basename = cur->d_name;
+        files.push_back(basename);
+    }
+    std::sort(files.begin(), files.end());
+}
+
+Line Ls::pull() {
+    if(offset >= files.size()) {
+        return Line{EOF_PIPE, ""};
+    }
+    return Line{STDOUT_PIPE, files[offset++]};
 }
 
 std::string get_cwd() {
@@ -115,6 +153,8 @@ std::vector<std::unique_ptr<Process>> build_pipeline(const std::vector<std::vect
             result.emplace_back(std::unique_ptr<Process>(new Exit(s)));
         } else if(s[0] == "cd") {
             result.emplace_back(std::unique_ptr<Process>(new Cd(s)));
+        } else if(s[0] == "ls") {
+            result.emplace_back(std::unique_ptr<Process>(new Ls(s)));
         } else {
             throw std::logic_error("Unknown command: " + s[0]);
         }
