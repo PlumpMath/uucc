@@ -93,3 +93,15 @@ public:
 private:
     std::string pattern;
 };
+
+class Sort : public Process {
+public:
+    Sort(const std::vector<std::string> &args, Process *previous);
+    Line pull() override;
+
+private:
+    std::vector<std::string> lines;
+    bool depleted = false;
+    size_t i = 0;
+};
+

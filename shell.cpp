@@ -162,6 +162,27 @@ std::vector<std::vector<std::string>> parse(const std::string &line) {
     return result;
 }
 
+Sort::Sort(const std::vector<std::string> &args, Process *previous) : Process(previous) {
+    if(args.size() != 1) {
+        throw std::logic_error("Sort takes no arguments.");
+    }
+}
+
+Line Sort::pull() {
+    while(!depleted) {
+        auto l = previous->pull();
+        switch(l.type) {
+        case STDERR_PIPE : return l;
+        case STDOUT_PIPE : lines.emplace_back(std::move(l.text)); break;
+        case EOF_PIPE : depleted = true; std::sort(lines.begin(), lines.end()); break;
+        }
+    }
+    if(i >= lines.size()) {
+        return Line{EOF_PIPE, ""};
+    }
+    return Line{STDOUT_PIPE, lines[i++]};
+}
+
 std::vector<std::unique_ptr<Process>> build_pipeline(const std::vector<std::vector<std::string>> &commands) {
     std::vector<std::unique_ptr<Process>> result;
     result.reserve(commands.size()+1);
@@ -181,6 +202,8 @@ std::vector<std::unique_ptr<Process>> build_pipeline(const std::vector<std::vect
             result.emplace_back(std::unique_ptr<Process>(new Ls(s, previous)));
         } else if(s[0] == "grep") {
             result.emplace_back(std::unique_ptr<Process>(new Grep(s, previous)));
+        } else if(s[0] == "sort") {
+            result.emplace_back(std::unique_ptr<Process>(new Sort(s, previous)));
         } else {
             throw std::logic_error("Unknown command: " + s[0]);
         }
