@@ -204,11 +204,30 @@ std::vector<std::unique_ptr<Process>> build_pipeline(const std::vector<std::vect
             result.emplace_back(std::unique_ptr<Process>(new Grep(s, previous)));
         } else if(s[0] == "sort") {
             result.emplace_back(std::unique_ptr<Process>(new Sort(s, previous)));
+        } else if(s[0] == "uniq") {
+            result.emplace_back(std::unique_ptr<Process>(new Uniq(s, previous)));
         } else {
             throw std::logic_error("Unknown command: " + s[0]);
         }
     }
     return result;
+}
+
+Uniq::Uniq(const std::vector<std::string> &args, Process *previous) : Process(previous), prev_line("\n" ) {
+    if(args.size() != 1) {
+        throw std::logic_error("Uniq takes no arguments.");
+    }
+}
+
+Line Uniq::pull() {
+    while(true) {
+        auto l = previous->pull();
+        switch(l.type) {
+        case STDERR_PIPE : return l;
+        case STDOUT_PIPE : if(l.text != prev_line) { prev_line = l.text; return l;}; break;
+        case EOF_PIPE : return l;
+        }
+    }
 }
 
 void run_pipeline(std::vector<std::unique_ptr<Process>> &pipeline) {

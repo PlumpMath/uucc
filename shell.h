@@ -105,3 +105,12 @@ private:
     size_t i = 0;
 };
 
+
+class Uniq : public Process {
+public:
+    Uniq(const std::vector<std::string> &args, Process *previous);
+    Line pull() override;
+
+private:
+    std::string prev_line;
+};
