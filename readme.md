@@ -1,7 +1,7 @@
 # Unix userland as C++ coroutines
 
 A very basic Unix shell implementation which does not spawn any processes
-but instead implements binary functionality with cooperative multitasking
+but instead implements shell pipelines with cooperative multitasking
 
 ## Limitations
 
@@ -22,3 +22,7 @@ Compile the app and run `babyshell`. Then type commands such as:
 None of the commands takes file arguments so you need to use `cat`.
 
 To end the shell type `exit` to quit or just hit `ctrl-c`.
+
+## More info
+
+[Blog post](http://nibblestew.blogspot.fi/2016/10/unix-userland-as-c-coroutines.html).
